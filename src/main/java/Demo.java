@@ -25,6 +25,7 @@ public class Demo {
 
     private static int serviceCount = 0;
     private static int policyCount = 0;
+    private static int policyEqualCount = 1;
     public static void main(String[] args) {
         //excel文件路径
         String excelPath = "C:\\Users\\wangwanqiang\\Desktop\\test2.xlsx";
@@ -75,13 +76,13 @@ public class Demo {
                         //存放一行记录
                         Node node = new Node();
                         Cell cell = row.getCell(2);
-                        node.setSourceDescription(cell.toString());
+                        node.setSourceDescription(cell.toString().replaceAll(" ",""));
 
-                        node.setDestDescription(row.getCell(4).toString());
+                        node.setDestDescription(row.getCell(4).toString().replaceAll(" ",""));
 
 
                         node.setPort(row.getCell(6).toString().split("："));
-                        node.setDescription(row.getCell(7).toString());
+                        node.setDescription(row.getCell(7).toString().replaceAll(" ",""));
                         List sourceIPArray = new ArrayList();
                         List destIPArray = new ArrayList();
                         boolean flag = false;
@@ -99,6 +100,7 @@ public class Demo {
                             node.setSourceIp(sourceIPArray.toString().split("\\[")[1].split("]")[0].split(","));
                             node.setDest(row.getCell(5).toString().split("\n"));
                             addressNodeList.addNode(node);
+                            count++;
                         }else{
                             //如果源不在墙里，则看目的地址是否在墙里
                             for(String destIp:row.getCell(5).toString().split("\n")){
@@ -115,6 +117,7 @@ public class Demo {
                                 node.setDest(destIPArray.toString().split("\\[")[1].split("]")[0].split(","));
                                 node.setSourceIp(row.getCell(3).toString().split("\n"));
                                 addressNodeList.addNode(node);
+                                count++;
                             }else{
                                 node.setSourceIp(row.getCell(3).toString().split("\n"));
                                 node.setDest(row.getCell(5).toString().split("\n"));
@@ -129,6 +132,9 @@ public class Demo {
                 ArrayList<ArrayList> result = getResult(noInAnyFwNodeList);
                 //writeExcel(result,"C:\\Users\\wangwanqiang\\Desktop\\demo5.xlsx");
                 autoCommandLine(addressNodeList);
+                System.out.println("policyEqulaCount = "+policyEqualCount);
+                System.out.println("count = "+count);
+                System.out.println("policyCount = "+policyCount);
             } else {
                 System.out.println("找不到指定的文件");
             }
@@ -186,7 +192,8 @@ public class Demo {
 //                        ngfw111_68.put(address.substring(0, address.lastIndexOf(".")),"");
 //                    }
 //                }
-                Cell cell = row.getCell(1);
+                //第几列　即读取哪一个防火墙管理的地址范围
+                Cell cell = row.getCell(3);
                 for (String address : cell.toString().split("\n")) {
                     System.out.println(address);
                     ngfw111_68.put(address.substring(0, address.lastIndexOf(".")),"");
@@ -346,7 +353,8 @@ public class Demo {
         Map policyMap = new HashMap();
         addressNode = addressNode.next;
         while(addressNode!=null){
-            System.out.println("count = "+(++count));
+            //count++;
+            //System.out.println("count = "+(++count));
             // TODO: 2018/11/2
 
             //源地址
@@ -354,6 +362,7 @@ public class Demo {
                 String group = "object network address-group "+addressNode.getSourceDescription()+"\n";
                 String object = "";
                 for(int i=0;i<addressNode.getSourceIp().length;i++){
+                    addressNode.getSourceIp()[i] = addressNode.getSourceIp()[i].trim();
                     //object network address  BODS系统-10.5.86.203
                     //network-object network  10.5.86.203  network-object network
                     //exit
@@ -362,12 +371,18 @@ public class Demo {
                     }else{
                         objectMap.put("object network address "+addressNode.getSourceDescription()+"-"+addressNode.getSourceIp()[i],"");
                         object +="object network address "+addressNode.getSourceDescription()+"-"+addressNode.getSourceIp()[i]+"\n";
-                        object +="network-object network "+addressNode.getSourceIp()[i]+" network-object network\n";
+                        if(addressNode.getSourceIp()[i].contains("-")){
+                            object += "network-object range "+addressNode.getSourceIp()[i].split("-")[0]+"-"+addressNode.getSourceIp()[i].split("-")[0].substring(0,addressNode.getSourceIp()[i].split("-")[0].lastIndexOf("."))+"."+addressNode.getSourceIp()[i].split("-")[1]+"\n";
+                        }else{
+                            object +="network-object network "+addressNode.getSourceIp()[i]+" 255.255.255.255\n";
+                        }
                         object +="exit\n";
                     }
                 }
-                System.out.println(group+object);
+                group += "exit\n";
+                System.out.println(object+group);
             }else{
+                addressNode.getSourceIp()[0] = addressNode.getSourceIp()[0].trim();
                 //SAProuter
                 if("10.246.166.139".equals(addressNode.getSourceIp()[0].trim())){
                     if(objectMap.containsKey("object network address "+addressNode.getSourceDescription())){
@@ -375,7 +390,12 @@ public class Demo {
                     }else {
                         objectMap.put("object network address " + addressNode.getSourceDescription(), "");
                         System.out.println("object network address " + addressNode.getSourceDescription());
-                        System.out.println("network-object network " + addressNode.getSourceIp()[0] + " network-object network");
+                        if(addressNode.getSourceIp()[0].contains("-")){
+                            System.out.println("network-object range "+addressNode.getSourceIp()[0].split("-")[0]+"-"+addressNode.getSourceIp()[0].split("-")[0].substring(0,addressNode.getSourceIp()[0].split("-")[0].lastIndexOf("."))+"."+addressNode.getSourceIp()[0].split("-")[1]);
+                        }else{
+
+                            System.out.println("network-object network " + addressNode.getSourceIp()[0]+" 255.255.255.255" );
+                        }
                         System.out.println("exit");
                     }
                 }else{
@@ -384,7 +404,12 @@ public class Demo {
                     }else{
                         objectMap.put("object network address "+addressNode.getSourceDescription()+"-"+addressNode.getSourceIp()[0],"");
                         System.out.println("object network address "+addressNode.getSourceDescription()+"-"+addressNode.getSourceIp()[0]);
-                        System.out.println("network-object network "+addressNode.getSourceIp()[0]+" network-object network");
+                        if(addressNode.getSourceIp()[0].contains("-")){
+                            System.out.println("network-object range "+addressNode.getSourceIp()[0].split("-")[0]+"-"+addressNode.getSourceIp()[0].split("-")[0].substring(0,addressNode.getSourceIp()[0].split("-")[0].lastIndexOf("."))+"."+addressNode.getSourceIp()[0].split("-")[1]);
+                        }else{
+
+                            System.out.println("network-object network "+addressNode.getSourceIp()[0] +"  255.255.255.255");
+                        }
                         System.out.println("exit");
                     }
                 }
@@ -397,24 +422,37 @@ public class Demo {
                     //object network address  BODS系统-10.5.86.203
                     //network-object network  10.5.86.203  network-object network
                     //exit
+                    addressNode.getDest()[i] = addressNode.getDest()[i].trim();
                     group += "group-object address "+addressNode.getDestDescription()+"-"+addressNode.getDest()[i]+"\n";
                     if(objectMap.containsKey("object network address "+addressNode.getDestDescription()+"-"+addressNode.getDest()[i])){
                     }else{
                         objectMap.put("object network address "+addressNode.getDestDescription()+"-"+addressNode.getDest()[i],"");
                         object +="object network address "+addressNode.getDestDescription()+"-"+addressNode.getDest()[i]+"\n";
-                        object +="network-object network "+addressNode.getDest()[i]+" network-object network\n";
+                        if(addressNode.getDest()[0].contains("-")){
+                            System.out.println("network-object range "+addressNode.getDest()[0].split("-")[0]+"-"+addressNode.getDest()[0].split("-")[0].substring(0,addressNode.getDest()[0].split("-")[0].lastIndexOf("."))+"."+addressNode.getDest()[0].split("-")[1]+"\n");
+                        }else{
+
+                            object +="network-object network "+addressNode.getDest()[i]+"  255.255.255.255\n";
+                        }
                         object +="exit\n";
                     }
                 }
-                System.out.println(group+object);
+                group += "exit\n";
+                System.out.println(object+group);
             }else{
+                addressNode.getDest()[0] = addressNode.getDest()[0].trim();
                 if("10.246.166.139".equals(addressNode.getDest()[0].trim())){
                     if(objectMap.containsKey("object network address "+addressNode.getDestDescription())){
 
                     }else {
                         objectMap.put("object network address " + addressNode.getDestDescription(), "");
                         System.out.println("object network address " + addressNode.getDestDescription());
-                        System.out.println("network-object network " + addressNode.getDest()[0] + " network-object network");
+                        if(addressNode.getDest()[0].contains("-")){
+                            System.out.println("network-object range "+addressNode.getDest()[0].split("-")[0]+"-"+addressNode.getDest()[0].split("-")[0].substring(0,addressNode.getDest()[0].split("-")[0].lastIndexOf("."))+"."+addressNode.getDest()[0].split("-")[1]);
+                        }else {
+                            System.out.println("network-object network " + addressNode.getDest()[0] + "  255.255.255.255");
+
+                        }
                         System.out.println("exit");
                     }
                 }else{
@@ -423,7 +461,12 @@ public class Demo {
                     }else{
                         objectMap.put("object network address "+addressNode.getDestDescription()+"-"+addressNode.getDest()[0],"");
                         System.out.println("object network address "+addressNode.getDestDescription()+"-"+addressNode.getDest()[0]);
-                        System.out.println("network-object network "+addressNode.getDest()[0]+" network-object network");
+                        if(addressNode.getDest()[0].contains("-")){
+                            System.out.println("network-object range "+addressNode.getDest()[0].split("-")[0]+"-"+addressNode.getDest()[0].split("-")[0].substring(0,addressNode.getDest()[0].split("-")[0].lastIndexOf("."))+"."+addressNode.getDest()[0].split("-")[1]);
+                        }else {
+                            System.out.println("network-object network "+addressNode.getDest()[0] +"  255.255.255.255");
+
+                        }
                         System.out.println("exit");
                     }
                 }
@@ -441,8 +484,9 @@ public class Demo {
                     if("10.246.166.139".equals(addressNode.getDest()[0].trim())){
 
                         policyMap = autoPolicy(policyMap,addressNode.getSourceDescription(),addressNode.getDestDescription(),(String)portMap.get(Arrays.toString(addressNode.getPort())),addressNode.getDescription());
+                    }else{
+                        policyMap = autoPolicy(policyMap,addressNode.getSourceDescription(),addressNode.getDestDescription()+"-"+addressNode.getDest()[0],(String)portMap.get(Arrays.toString(addressNode.getPort())),addressNode.getDescription());
                     }
-                    policyMap = autoPolicy(policyMap,addressNode.getSourceDescription(),addressNode.getDestDescription()+addressNode.getDest()[0],(String)portMap.get(Arrays.toString(addressNode.getPort())),addressNode.getDescription());
                 }
             }else{
                 if(addressNode.getDest().length>1){
@@ -451,7 +495,7 @@ public class Demo {
                         policyMap = autoPolicy(policyMap,addressNode.getSourceDescription(),addressNode.getDestDescription(),(String)portMap.get(Arrays.toString(addressNode.getPort())),addressNode.getDescription());
                     }else{
 
-                        policyMap = autoPolicy(policyMap,addressNode.getSourceDescription()+addressNode.getSourceIp()[0],addressNode.getDestDescription(),(String)portMap.get(Arrays.toString(addressNode.getPort())),addressNode.getDescription());
+                        policyMap = autoPolicy(policyMap,addressNode.getSourceDescription()+"-"+addressNode.getSourceIp()[0],addressNode.getDestDescription(),(String)portMap.get(Arrays.toString(addressNode.getPort())),addressNode.getDescription());
                     }
                 }else {
                     if ("10.246.166.139".equals(addressNode.getSourceIp()[0].trim()) && "10.246.166.139".equals(addressNode.getDest()[0].trim())) {
@@ -459,12 +503,12 @@ public class Demo {
                         policyMap = autoPolicy(policyMap, addressNode.getSourceDescription(), addressNode.getDestDescription(), (String) portMap.get(Arrays.toString(addressNode.getPort())), addressNode.getDescription());
                     } else if (!"10.246.166.139".equals(addressNode.getSourceIp()[0].trim()) && "10.246.166.139".equals(addressNode.getDest()[0].trim())) {
 
-                        policyMap = autoPolicy(policyMap, addressNode.getSourceDescription() + addressNode.getSourceIp()[0], addressNode.getDestDescription(), (String) portMap.get(Arrays.toString(addressNode.getPort())), addressNode.getDescription());
+                        policyMap = autoPolicy(policyMap, addressNode.getSourceDescription() +"-"+ addressNode.getSourceIp()[0], addressNode.getDestDescription(), (String) portMap.get(Arrays.toString(addressNode.getPort())), addressNode.getDescription());
                     } else if ("10.246.166.139".equals(addressNode.getSourceIp()[0].trim()) && !"10.246.166.139".equals(addressNode.getDest()[0].trim())) {
-                        policyMap = autoPolicy(policyMap, addressNode.getSourceDescription() , addressNode.getDestDescription()+addressNode.getDest()[0], (String) portMap.get(Arrays.toString(addressNode.getPort())), addressNode.getDescription());
+                        policyMap = autoPolicy(policyMap, addressNode.getSourceDescription() , addressNode.getDestDescription()+"-"+addressNode.getDest()[0], (String) portMap.get(Arrays.toString(addressNode.getPort())), addressNode.getDescription());
 
                     } else {
-                        policyMap = autoPolicy(policyMap, addressNode.getSourceDescription() + addressNode.getSourceIp()[0], addressNode.getDestDescription()+addressNode.getDest()[0], (String) portMap.get(Arrays.toString(addressNode.getPort())), addressNode.getDescription());
+                        policyMap = autoPolicy(policyMap, addressNode.getSourceDescription() +"-"+ addressNode.getSourceIp()[0], addressNode.getDestDescription()+"-"+addressNode.getDest()[0], (String) portMap.get(Arrays.toString(addressNode.getPort())), addressNode.getDescription());
 
                     }
                 }
@@ -498,6 +542,8 @@ public class Demo {
             //exit
             //System.out.println(Arrays.toString(addressNodeList.getPort()));
             System.out.println("object service custom "+"20181031_"+serviceCount+"_端口");
+            System.out.println("Service = "+Arrays.toString(addressNodeList.getPort()));
+
             if(addressNodeList.getPort().length>1){
                 String  [] port = addressNodeList.getPort()[1].replace("TCP","").replace(":","").split(",");
                 for(int i =0;i<port.length;i++){
@@ -541,10 +587,12 @@ public class Demo {
             //policyName = sourceDescription.substring(sourceDescription.length()/2,sourceDescription.length())+"to"+destDescription.substring(destDescription.length()/2,destDescription.length())+"by"+service.substring(service.length()/2,service.length());
         }
         if(policyMap.containsKey(policyName)){
-            policyName = policyName+policyCount;
+            policyName = policyName+"_"+policyEqualCount++;
+            System.out.println("重名策略");
         }else {
             policyMap.put(policyName,"");
-            System.out.println("policyCount = "+(++policyCount));
+            policyCount++;
+            //System.out.println("policyCount = "+(++policyCount));
         }
         System.out.println("security policy "+policyName+" sip "+sourceDescription+" dip "+destDescription+" szone any dzone any service "+service+" action permit enable");
         System.out.println("security policy "+policyName+" description "+description);
